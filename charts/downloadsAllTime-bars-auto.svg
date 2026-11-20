@@ -17,7 +17,7 @@
 <path class="f3" d="M593.0,352.0V331.9Q593.0,327.9 597.0,327.9H613.0Q617.0,327.9 617.0,331.9V352.0Z"/>
 <rect class="f3" x="60" y="440" width="10" height="10" rx="2"/>
 </g>
-<text class="t1" x="56" y="30" font-size="16" font-weight="600">누적 다운로드 월별 증가</text>
+<text class="t1" x="56" y="30" font-size="16" font-weight="600">Total downloads, monthly increase</text>
 <text class="mu tk" x="48" y="356.0" text-anchor="end">0</text>
 <text class="mu tk" x="48" y="256.0" text-anchor="end">1K</text>
 <text class="mu tk" x="48" y="156.0" text-anchor="end">2K</text>

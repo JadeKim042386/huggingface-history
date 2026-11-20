@@ -1,20 +1,20 @@
-# 히스토리를 남길 대상. 종류는 datasets | models | spaces.
-#   "<종류>/<소유자>/*"      소유자의 저장소 전부. 수집할 때마다 다시 찾으므로 새로 생긴 것도 자동으로 들어온다.
-#   "<종류>/<소유자>/<이름>"  저장소 하나.
-# HF에서 삭제된 저장소는 더 수집되지 않지만 그때까지의 기록과 차트의 선은 남는다.
+# What to keep a history of. kind is datasets | models | spaces.
+#   "<kind>/<owner>/*"       every repository of the owner. Looked up on each run, so new ones join automatically.
+#   "<kind>/<owner>/<name>"  a single repository.
+# A repository deleted on Hugging Face stops being collected, but its records and its line in the charts remain.
 targets = [
   "datasets/Spatial1ntelligence/*",
 ]
 
-# 종류별로 남길 지표. HF API의 expand 필드 이름 그대로 쓴다.
+# Metrics to record per kind, named as the Hugging Face API `expand` fields.
 [metrics]
 datasets = ["downloadsAllTime", "downloads", "likes", "trendingScore"]
 models = ["downloadsAllTime", "downloads", "likes", "trendingScore"]
 spaces = ["likes", "trendingScore"]
 
-# README에 넣을 차트. 위에서부터 순서대로 실린다.
-#   form:  line(선) | area(면) | bars(월별 증가 막대) | card(현재값 카드)
-#   style: auto(보는 사람의 라이트/다크) | light | dark | sketch(손그림)
+# Charts shown in the README, in this order.
+#   form:  line | area | bars (monthly increase) | card (current value)
+#   style: auto (follows the viewer's light/dark setting) | light | dark | sketch (hand-drawn)
 [[charts]]
 metric = "downloadsAllTime"
 form = "card"

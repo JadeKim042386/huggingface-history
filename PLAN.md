@@ -1,62 +1,68 @@
-# 계획: 리셋되는 기록의 히스토리 보존
+# Plan: keeping the history of records that get reset
 
-## 목표
+## Goal
 
-star-history처럼 Hugging Face 데이터셋 다운로드 히스토리를 차트로 보여 준다.
-최종적으로는 다운로드뿐 아니라 리셋되거나 사라지는 기록을 골라서 히스토리로 남긴다.
-Hugging Face 쪽 기록이 리셋돼도 우리가 수집한 기록은 남아야 한다.
+Show the download history of Hugging Face datasets as charts, the way star-history does for GitHub stars.
+Beyond downloads, let the user choose any record that is reset or disappears and keep its history.
+The records we collect must remain even if Hugging Face resets its own.
 
-## 확인한 사실 (2026-11-21)
+## Verified facts (2026-11-21)
 
-- HF API는 현재값만 준다. `downloads`(최근 30일)와 `downloadsAllTime`(누적)이고, 날짜별 시계열은 없다.
-- 공개 데이터셋 `cfahlgren1/hub-stats`가 허브 전체 통계를 매일 올린다. `datasets.parquet` 커밋은 793개, 2024-07-29부터 있다.
-- `downloadsAllTime` 컬럼은 2025-02-27 스냅샷부터 있다. 그 전은 30일 다운로드와 좋아요만 있다.
-- `_id`는 이름이 바뀌어도 유지된다. 옛 이름으로 API를 부르면 새 이름으로 리다이렉트된다.
-- 옛 스냅샷은 row group이 하나라 파일마다 `_id` 컬럼 전체를 읽는다. 8개 병렬로 파일당 약 1.7초 걸린다.
-- `rajpurkar/squad`의 30일 다운로드는 2024-10-21에서 22 사이 하루 만에 8,184에서 55,531로 뛴다. 집계 방식이 바뀐 흔적으로 보인다.
-- 같은 데이터셋에서 누적 다운로드는 547회 관측 동안 한 번도 줄지 않았다. 좋아요는 2026-10-19에 1,247에서 874로 줄었다.
-- 30일 역산 실측: 누적값의 30일 증가를 30일 다운로드로 나눈 비율이 중앙값 1.02, 최소 0.78, 최대 1.23이고 94%가 0.9~1.1 안이다(180쌍).
+- The Hugging Face API returns current values only: `downloads` (last 30 days) and `downloadsAllTime`. There is no per-day series.
+- The public dataset `cfahlgren1/hub-stats` uploads hub-wide stats daily. `datasets.parquet` has 793 commits, starting 2024-07-29.
+- The `downloadsAllTime` column exists from the 2025-02-27 snapshot. Earlier snapshots have only 30-day downloads and likes.
+- `_id` survives a rename. Calling the API with an old name redirects to the new one.
+- Older snapshots have a single row group, so each file needs a full read of the `_id` column: about 1.7 s per file with 8 threads.
+- For `rajpurkar/squad`, 30-day downloads jump from 8,184 to 55,531 between 2024-10-21 and 10-22. This looks like a change in how downloads are counted.
+- For the same dataset, total downloads never decreased across 547 observations. Likes dropped from 1,247 to 874 on 2026-10-19.
+- Back-estimating totals from 30-day downloads: the 30-day increase of the total divided by 30-day downloads has median 1.02, min 0.78, max 1.23; 94% of 180 pairs fall within 0.9 to 1.1.
+- `raw.githubusercontent.com` serves the chart SVGs as `image/svg+xml`, so they can be embedded in pages outside GitHub.
 
-## 설계 결정
+## Design decisions
 
-| 결정 | 이유 |
+| Decision | Reason |
 |---|---|
-| 추가 전용 원장 `data/ledger.csv` (`observed_at, entity_id, target, metric, value, origin`) | 기존 줄을 고치지 않으므로 HF가 리셋해도 과거 관측이 남는다. 모든 칸이 같은 행만 건너뛴다. |
-| 대상 식별은 `entity_id`(HF `_id`) | 이름 변경과 삭제 후 재생성을 구분한다. |
-| 시각은 UTC | 로컬 실행과 서버 실행의 날짜가 어긋나지 않는다. |
-| 수집 실패는 기록하지 않음 | 0이나 빈 값이 원장에 들어가면 되돌릴 수 없다. |
-| 값 감소를 자동으로 보정하지 않음 | HF가 집계를 소급 조정해 줄어드는 경우와 진짜 리셋을 값만으로는 구분할 수 없다. 원본을 그대로 두고 표시만 한다. |
-| 종류별 지표 목록 (`targets.toml`) | spaces에는 다운로드 지표가 없다. |
-| 차트는 정적 SVG | README에 넣을 수 있고 라이트·다크 모드를 따른다. |
-| 차트 형태와 스타일은 `targets.toml`의 `[[charts]]` | 형태 line·area·bars·card, 스타일 auto·light·dark·sketch를 차트마다 고른다. |
-| 월별 막대는 달 경계 값을 선형 보간 | 스냅샷이 월말에 빠져도 달 길이가 어긋나지 않는다. 덜 찬 달은 그리지 않는다. |
-| 이름으로 과거 스냅샷 찾기는 안 함 | 같은 이름으로 재생성된 다른 저장소가 섞인다. 추적 전에 삭제된 대상의 복구는 필요할 때 따로 만든다. |
+| Append-only ledger `data/ledger.csv` (`observed_at, entity_id, target, metric, value, origin`) | Existing lines are never edited, so past observations survive a reset. Only rows identical in every field are skipped. |
+| Targets are identified by `entity_id` (the Hugging Face `_id`) | Tells a rename apart from a delete-and-recreate. |
+| Times are UTC | Local runs and server runs agree on the date. |
+| Failed collection is never recorded | A 0 or blank in the ledger could not be taken back. |
+| A decreasing value is not auto-corrected | A retroactive adjustment and a real reset cannot be told apart from the value alone. Raw values are kept as they are. |
+| Targets can be `<kind>/<owner>/*` | The owner's repositories are looked up on every run, so new ones are tracked automatically. A deleted one stops being collected; its records and chart line remain. |
+| Metrics are listed per kind | Spaces have no download metrics. |
+| Charts are static SVG | They embed in READMEs and Hugging Face cards and follow light/dark mode. |
+| Chart form and style come from `[[charts]]` in `targets.toml` | Forms: line, area, bars, card. Styles: auto, light, dark, sketch. |
+| Monthly bars interpolate the value at month boundaries | A missing month-end snapshot does not distort month length. Incomplete months are not drawn. |
+| Past snapshots are never looked up by name | A different repository recreated under the same name would be mixed in. |
+| A failed backfill does not fail the run | If the snapshot source is gone or a target is not in it, history simply starts on the day collection begins. |
+| `data/ledger.csv` uses the union merge driver | Lines appended on both sides of a merge are all kept. |
 
-## 단계
+## Phases
 
-| 단계 | 내용 | 상태 |
+| Phase | Content | Status |
 |---|---|---|
-| 0 | 사실 검증: 컬럼 도입일, 조회 속도, 30일 역산 오차 | 완료 |
-| 1 | 라이브 수집 + 원장 + 대상·지표 선택(`targets.toml`) | 완료 |
-| 2 | hub-stats 백필 + SVG 차트 + README 차트 구간(형태·스타일 선택) | 완료 (datasets만 검증) |
-| 3 | 매일 자동 수집: GitHub Actions 크론, 공개 템플릿 저장소 | 완료 |
-| 4 | models·spaces 백필 검증, 지표 추가, 급락·이름 변경·`_id` 변경 이벤트 표시 | 대기 |
-| 5 | 원장을 읽는 정적 웹 페이지 (대상 비교, 호버) | 대기 |
-| 6 | HF 밖 소스 (GitHub traffic 등): 같은 원장 규격으로 쓰는 독립 스크립트 | 필요할 때 |
+| 0 | Fact checks: column introduction date, query speed, back-estimation error | Done |
+| 1 | Live collection, ledger, target and metric selection (`targets.toml`) | Done |
+| 2 | Backfill from hub-stats, SVG charts, README chart and embed blocks | Done (verified for datasets only) |
+| 3 | Daily collection with GitHub Actions; public template repository | Done |
+| 4 | Verify backfill for models and spaces; more metrics; markers for sharp drops, renames, and `_id` changes | Pending |
+| 5 | Static web page that reads the ledger (comparison, hover) | Pending |
+| 6 | Sources outside Hugging Face (GitHub traffic and so on) as separate scripts writing the same ledger format | When needed |
 
-과거 기록을 채우지 못해도(스냅샷 저장소가 사라졌거나 대상이 스냅샷에 없는 경우) 실패로 치지 않는다. 수집을 시작한 날부터 기록이 쌓인다.
+## Out of scope
 
-## 범위에서 뺀 것
+- A web page where any id gives an instant chart: backfilling one target takes up to 20 minutes, so only tracked targets are shown.
+- Back-estimating totals before 2025-02: the error is mostly within 10%, but counting changed on 2024-10-22, which leaves only four usable months.
+- Matching the Hugging Face site theme toggle: `auto` charts follow the operating system setting, not the site toggle.
 
-- 임의 id를 입력하면 바로 차트가 나오는 웹: 대상 하나의 백필에 20분쯤 걸려 즉시 응답이 안 된다. 추적 중인 대상만 보여 준다.
-- 2025-02 이전 누적 다운로드 역산: 실측 오차는 대체로 ±10%지만 2024-10-22 이전은 집계 기준이 달라 쓸 수 없다. 늘릴 수 있는 구간이 4개월뿐이라 넣지 않았다.
+## Known limits
 
-## Antigravity 검토 반영
+- Charts draw at most 8 targets; with more, only the first 8 recorded are drawn.
+- Every chart draws all tracked targets. There is no per-chart target selection yet.
+- A day when a target was absent from a snapshot is queried again on every run.
 
-1차 검토(2026-11-21)에서 7건을 받아 6건을 반영했다: 자동 오프셋 보정 삭제, `_id` 키, UTC, 종류별 지표, 라이브 수집 우선, 임의 id 웹 제외.
-역산 추정은 실측 후 결정으로 미뤘다.
-Antigravity가 든 근거 중 `huggingface_hub` 이슈 번호와 "2024년 9월 집계 변경"은 직접 확인하지 못했다.
+## Reviews with Antigravity
 
-2차 검토(구현 코드)에서 8건을 받아 모두 확인하고 고쳤다: 같은 날 값이 돌아오는 관측(A→B→A) 유실, `--step` 재실행 비멱등, 이름 조회가 섞는 다른 저장소, 시간순이 아닌 원장에서 최신 이름 고르기, 카드의 30일 변화가 37일 전과 비교되던 것, 월별 막대의 달 길이 왜곡, `999500`이 `1e+03K`로 찍히던 것, 한 달 안의 관측만 있을 때 x축 눈금 누락.
-지표를 나중에 추가한 경우의 백필은 `backfill --all`로 처리한다.
-고친 코드는 Antigravity가 다시 검토하지 않았다.
+- Round 1 (plan): 7 points, 6 adopted. Dropped automatic offset correction, keyed targets by `_id`, UTC times, per-kind metrics, live collection first, no instant-lookup web page.
+- Round 2 (code): 8 bugs, all fixed. Among them: observations lost when a value returned the same day, the card comparing against 37 days ago while saying 30, and distorted month lengths in the bars.
+- Round 3 (workflow, wildcards, embed): 6 points, 4 adopted (empty listings fail the run, paginated listings, rename and case matching, workflow step conditions and `git add`). Not adopted: color slots fixed across the whole ledger (colors shift only on a deliberate config change), and full-history clones in the workflow (a failed push loses one day of live values, which the next run backfills).
+- Two claims from the reviews were not verified independently: a `huggingface_hub` issue number about decreasing totals, and a counting change in September 2024 (the data shows 2024-10-22).

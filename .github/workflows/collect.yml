@@ -2,7 +2,7 @@ name: collect
 
 on:
   schedule:
-    - cron: "17 3 * * *" # 매일 03:17 UTC
+    - cron: "17 3 * * *" # daily at 03:17 UTC
   workflow_dispatch:
 
 permissions:
@@ -16,13 +16,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: command -v uv || pipx install uv
-      # 현재값을 기록하고, 공개 스냅샷에서 빠진 과거를 채운다. 첫 실행은 20분쯤 걸린다.
+      # Record current values and fill missing past days from the public snapshots. The first run can take about 20 minutes.
       - run: ./hfhist.py backfill
         env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }} # 비공개 저장소를 추적할 때만 필요
+          HF_TOKEN: ${{ secrets.HF_TOKEN }} # only needed to track private repositories
       - run: ./hfhist.py chart
         if: ${{ !cancelled() }}
-      # 일부 대상이 실패해도 모은 기록은 올린다
+      # push what was collected even if some targets failed
       - name: commit
         if: ${{ !cancelled() }}
         run: |
