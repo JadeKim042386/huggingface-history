@@ -2835,3 +2835,7 @@ observed_at,entity_id,target,metric,value,origin
 2026-11-20T17:24:16Z,621ffdd236468d709f181f95,datasets/rajpurkar/squad,downloads,157964,api
 2026-11-20T17:24:16Z,621ffdd236468d709f181f95,datasets/rajpurkar/squad,likes,892,api
 2026-11-20T17:24:16Z,621ffdd236468d709f181f95,datasets/rajpurkar/squad,trendingScore,0,api
+2026-11-20T17:31:37Z,621ffdd236468d709f181f95,datasets/rajpurkar/squad,downloadsAllTime,8388304,api
+2026-11-20T17:31:37Z,621ffdd236468d709f181f95,datasets/rajpurkar/squad,downloads,157964,api
+2026-11-20T17:31:37Z,621ffdd236468d709f181f95,datasets/rajpurkar/squad,likes,892,api
+2026-11-20T17:31:37Z,621ffdd236468d709f181f95,datasets/rajpurkar/squad,trendingScore,0,api
