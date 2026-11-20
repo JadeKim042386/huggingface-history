@@ -15,10 +15,30 @@ Hugging Face 저장소의 다운로드·좋아요처럼 현재값만 제공되�
 ![좋아요 (line, dark)](charts/likes-line-dark.svg)
 <!-- /charts -->
 
+## Hugging Face 카드에 넣기
+
+아래를 Hugging Face 데이터셋(또는 모델) 카드의 `README.md` 본문에 붙여 넣는다.
+주소가 고정이라 한 번만 넣으면 되고, 차트는 매일 갱신된다.
+이 GitHub 저장소가 공개여야 그림이 보인다.
+
+<!-- embed -->
+```markdown
+![누적 다운로드 (card, auto)](https://raw.githubusercontent.com/JadeKim042386/huggingface-history/HEAD/charts/downloadsAllTime-card-auto.svg)
+
+![누적 다운로드 (line, sketch)](https://raw.githubusercontent.com/JadeKim042386/huggingface-history/HEAD/charts/downloadsAllTime-line-sketch.svg)
+
+![누적 다운로드 월별 증가 (bars, auto)](https://raw.githubusercontent.com/JadeKim042386/huggingface-history/HEAD/charts/downloadsAllTime-bars-auto.svg)
+
+![최근 30일 다운로드 (area, light)](https://raw.githubusercontent.com/JadeKim042386/huggingface-history/HEAD/charts/downloads-area-light.svg)
+
+![좋아요 (line, dark)](https://raw.githubusercontent.com/JadeKim042386/huggingface-history/HEAD/charts/likes-line-dark.svg)
+```
+<!-- /embed -->
+
 ## 내 저장소에서 쓰기
 
 1. 이 저장소에서 **Use this template**으로 새 저장소를 만든다.
-2. `data/`와 `charts/`를 지운다. 이 저장소가 모은 기록이라서 그대로 두면 차트에 함께 그려진다.
+2. `data/`와 `charts/`를 지운다. 이 저장소가 모은 기록이다.
 3. `targets.toml`에 추적할 대상과 지표, README에 실을 차트를 적는다.
 4. Actions 탭에서 워크플로를 켜고 `collect`를 한 번 수동 실행한다.
 

@@ -1,43 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 388" width="800" height="388" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="12">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 468" width="800" height="468" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="12">
 <style>.bg{fill:#fcfcfb}.t1{fill:#0b0b0b}.t2{fill:#52514e}.mu{fill:#898781}.sm{stroke:#898781}.grid{stroke:#e1e0d9}.axis{stroke:#c3c2b7}.s0{stroke:#2a78d6}.f0{fill:#2a78d6}.s1{stroke:#eb6834}.f1{fill:#eb6834}.s2{stroke:#1baf7a}.f2{fill:#1baf7a}.s3{stroke:#eda100}.f3{fill:#eda100}.s4{stroke:#e87ba4}.f4{fill:#e87ba4}.s5{stroke:#008300}.f5{fill:#008300}.s6{stroke:#6250d6}.f6{fill:#6250d6}.s7{stroke:#e34948}.f7{fill:#e34948}@media (prefers-color-scheme:dark){.bg{fill:#1a1a19}.t1{fill:#f0efec}.t2{fill:#c3c2b7}.mu{fill:#898781}.sm{stroke:#898781}.grid{stroke:#2c2c2a}.axis{stroke:#383835}.s0{stroke:#3987e5}.f0{fill:#3987e5}.s1{stroke:#d95926}.f1{fill:#d95926}.s2{stroke:#199e70}.f2{fill:#199e70}.s3{stroke:#c98500}.f3{fill:#c98500}.s4{stroke:#d55181}.f4{fill:#d55181}.s5{stroke:#008300}.f5{fill:#008300}.s6{stroke:#9085e9}.f6{fill:#9085e9}.s7{stroke:#e66767}.f7{fill:#e66767}}.ln{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}.wash{opacity:.1}.tk{font-variant-numeric:tabular-nums}</style>
-<rect class="bg" width="800" height="388" rx="8"/>
+<rect class="bg" width="800" height="468" rx="8"/>
 <g>
 <line class="axis" x1="56" x2="736" y1="352.0" y2="352.0"/>
 <line class="grid" x1="56" x2="736" y1="252.0" y2="252.0"/>
 <line class="grid" x1="56" x2="736" y1="152.0" y2="152.0"/>
 <line class="grid" x1="56" x2="736" y1="52.0" y2="52.0"/>
-<path class="f0" d="M61.0,352.0V288.3Q61.0,284.3 65.0,284.3H81.0Q85.0,284.3 85.0,288.3V352.0Z"/>
-<path class="f0" d="M95.0,352.0V290.3Q95.0,286.3 99.0,286.3H115.0Q119.0,286.3 119.0,290.3V352.0Z"/>
-<path class="f0" d="M129.0,352.0V293.5Q129.0,289.5 133.0,289.5H149.0Q153.0,289.5 153.0,293.5V352.0Z"/>
-<path class="f0" d="M163.0,352.0V315.1Q163.0,311.1 167.0,311.1H183.0Q187.0,311.1 187.0,315.1V352.0Z"/>
-<path class="f0" d="M197.0,352.0V284.2Q197.0,280.2 201.0,280.2H217.0Q221.0,280.2 221.0,284.2V352.0Z"/>
-<path class="f0" d="M231.0,352.0V295.4Q231.0,291.4 235.0,291.4H251.0Q255.0,291.4 255.0,295.4V352.0Z"/>
-<path class="f0" d="M265.0,352.0V232.5Q265.0,228.5 269.0,228.5H285.0Q289.0,228.5 289.0,232.5V352.0Z"/>
-<path class="f0" d="M299.0,352.0V264.1Q299.0,260.1 303.0,260.1H319.0Q323.0,260.1 323.0,264.1V352.0Z"/>
-<path class="f0" d="M333.0,352.0V254.1Q333.0,250.1 337.0,250.1H353.0Q357.0,250.1 357.0,254.1V352.0Z"/>
-<path class="f0" d="M367.0,352.0V244.3Q367.0,240.3 371.0,240.3H387.0Q391.0,240.3 391.0,244.3V352.0Z"/>
-<path class="f0" d="M401.0,352.0V278.8Q401.0,274.8 405.0,274.8H421.0Q425.0,274.8 425.0,278.8V352.0Z"/>
-<path class="f0" d="M435.0,352.0V275.6Q435.0,271.6 439.0,271.6H455.0Q459.0,271.6 459.0,275.6V352.0Z"/>
-<path class="f0" d="M469.0,352.0V229.6Q469.0,225.6 473.0,225.6H489.0Q493.0,225.6 493.0,229.6V352.0Z"/>
-<path class="f0" d="M503.0,352.0V204.7Q503.0,200.7 507.0,200.7H523.0Q527.0,200.7 527.0,204.7V352.0Z"/>
-<path class="f0" d="M537.0,352.0V191.7Q537.0,187.7 541.0,187.7H557.0Q561.0,187.7 561.0,191.7V352.0Z"/>
-<path class="f0" d="M571.0,352.0V189.8Q571.0,185.8 575.0,185.8H591.0Q595.0,185.8 595.0,189.8V352.0Z"/>
-<path class="f0" d="M605.0,352.0V113.2Q605.0,109.2 609.0,109.2H625.0Q629.0,109.2 629.0,113.2V352.0Z"/>
-<path class="f0" d="M639.0,352.0V126.4Q639.0,122.4 643.0,122.4H659.0Q663.0,122.4 663.0,126.4V352.0Z"/>
-<path class="f0" d="M673.0,352.0V100.4Q673.0,96.4 677.0,96.4H693.0Q697.0,96.4 697.0,100.4V352.0Z"/>
-<path class="f0" d="M707.0,352.0V173.8Q707.0,169.8 711.0,169.8H727.0Q731.0,169.8 731.0,173.8V352.0Z"/>
+<path class="f0" d="M175.0,352.0V89.5Q175.0,85.5 179.0,85.5H195.0Q199.0,85.5 199.0,89.5V352.0Z"/>
+<path class="f0" d="M515.0,352.0V198.6Q515.0,194.6 519.0,194.6H535.0Q539.0,194.6 539.0,198.6V352.0Z"/>
+<rect class="f0" x="60" y="386" width="10" height="10" rx="2"/>
+<path class="f1" d="M541.0,352.0V271.5Q541.0,267.5 545.0,267.5H561.0Q565.0,267.5 565.0,271.5V352.0Z"/>
+<rect class="f1" x="60" y="404" width="10" height="10" rx="2"/>
+<path class="f2" d="M567.0,352.0V309.0Q567.0,305.0 571.0,305.0H587.0Q591.0,305.0 591.0,309.0V352.0Z"/>
+<rect class="f2" x="60" y="422" width="10" height="10" rx="2"/>
+<path class="f3" d="M253.0,352.0V333.0Q253.0,329.0 257.0,329.0H273.0Q277.0,329.0 277.0,333.0V352.0Z"/>
+<path class="f3" d="M593.0,352.0V331.9Q593.0,327.9 597.0,327.9H613.0Q617.0,327.9 617.0,331.9V352.0Z"/>
+<rect class="f3" x="60" y="440" width="10" height="10" rx="2"/>
 </g>
-<text class="t1" x="56" y="30" font-size="16" font-weight="600">누적 다운로드 월별 증가 · rajpurkar/squad</text>
+<text class="t1" x="56" y="30" font-size="16" font-weight="600">누적 다운로드 월별 증가</text>
 <text class="mu tk" x="48" y="356.0" text-anchor="end">0</text>
-<text class="mu tk" x="48" y="256.0" text-anchor="end">100K</text>
-<text class="mu tk" x="48" y="156.0" text-anchor="end">200K</text>
-<text class="mu tk" x="48" y="56.0" text-anchor="end">300K</text>
-<text class="mu tk" x="73.0" y="370" text-anchor="middle">2025-03</text>
-<text class="mu tk" x="175.0" y="370" text-anchor="middle">2025-06</text>
-<text class="mu tk" x="277.0" y="370" text-anchor="middle">2025-09</text>
-<text class="mu tk" x="379.0" y="370" text-anchor="middle">2025-12</text>
-<text class="mu tk" x="481.0" y="370" text-anchor="middle">2026-03</text>
-<text class="mu tk" x="583.0" y="370" text-anchor="middle">2026-06</text>
-<text class="mu tk" x="685.0" y="370" text-anchor="middle">2026-09</text>
-<text class="t2 tk" x="719.0" y="163.8" text-anchor="middle">182K</text>
+<text class="mu tk" x="48" y="256.0" text-anchor="end">1K</text>
+<text class="mu tk" x="48" y="156.0" text-anchor="end">2K</text>
+<text class="mu tk" x="48" y="56.0" text-anchor="end">3K</text>
+<text class="mu tk" x="226.0" y="370" text-anchor="middle">2026-09</text>
+<text class="mu tk" x="566.0" y="370" text-anchor="middle">2026-10</text>
+<text class="t2" x="82" y="396">Spatial1ntelligence/3d-front-indoor-renders · 1.57K</text>
+<text class="t2" x="82" y="414">Spatial1ntelligence/synthtext-recovered-mirror · 845</text>
+<text class="t2" x="82" y="432">Spatial1ntelligence/synthetic-bedroom-layouts · 470</text>
+<text class="t2" x="82" y="450">Spatial1ntelligence/Preprocessed_Neu3D · 241</text>
 </svg>

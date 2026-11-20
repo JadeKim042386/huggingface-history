@@ -1,6 +1,9 @@
-# 히스토리를 남길 대상. "<종류>/<id>" 형식이고 종류는 datasets | models | spaces.
+# 히스토리를 남길 대상. 종류는 datasets | models | spaces.
+#   "<종류>/<소유자>/*"      소유자의 저장소 전부. 수집할 때마다 다시 찾으므로 새로 생긴 것도 자동으로 들어온다.
+#   "<종류>/<소유자>/<이름>"  저장소 하나.
+# HF에서 삭제된 저장소는 더 수집되지 않지만 그때까지의 기록과 차트의 선은 남는다.
 targets = [
-  "datasets/rajpurkar/squad",
+  "datasets/Spatial1ntelligence/*",
 ]
 
 # 종류별로 남길 지표. HF API의 expand 필드 이름 그대로 쓴다.

@@ -18,11 +18,13 @@
 import argparse
 import bisect
 import csv
+from fnmatch import fnmatchcase
 import html
 import json
 import math
 import os
 import re
+import subprocess
 import sys
 import tomllib
 import urllib.request
@@ -38,11 +40,20 @@ STATS = "cfahlgren1/hub-stats"  # 허브 전체 통계를 매일 올리는 공�
 
 
 def get(url):
+    """JSON을 받는다. 목록이 여러 쪽이면 Link 헤더의 next를 따라가 끝까지 이어 붙인다."""
     headers = {"User-Agent": "hfhist"}
     if os.environ.get("HF_TOKEN"):
         headers["Authorization"] = f"Bearer {os.environ['HF_TOKEN']}"
-    with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=60) as r:
-        return json.load(r)
+    items = []
+    while url:
+        with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=60) as r:
+            data = json.load(r)
+            more = re.search(r'<([^>]+)>;\s*rel="next"', r.headers.get("Link") or "")
+        if not isinstance(data, list):
+            return data
+        items += data
+        url = more and more[1]
+    return items
 
 
 def read(path=LEDGER):
@@ -86,26 +97,31 @@ def observations(when, rec, target, metrics, origin):
 
 
 def collect():
-    """현재값을 기록하고 {설정의 target: (entity_id, createdAt)}를 돌려준다. 실패한 대상은 빠진다."""
+    """현재값을 기록하고 {지금 있는 대상: (entity_id, createdAt)}를 돌려준다. 실패한 대상은 빠진다."""
     cfg = tomllib.loads((ROOT / "targets.toml").read_text())
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     rows, found, failed = [], {}, []
     for t in cfg["targets"]:
-        kind = t.split("/")[0]
+        kind, _, rest = t.partition("/")
         metrics = cfg["metrics"][kind]
         query = "&".join(f"expand[]={m}" for m in [*metrics, "createdAt"])
+        everything = rest.endswith("/*")
         try:
-            rec = get(f"{HUB}/api/{t}?{query}")
+            # "종류/소유자/*"는 소유자의 저장소 전부다. 실행할 때마다 다시 찾으므로 새로 생긴 것도 들어온다.
+            recs = get(f"{HUB}/api/{kind}?author={rest[:-2]}&limit=1000&{query}") if everything else [get(f"{HUB}/api/{t}?{query}")]
         except (OSError, ValueError) as e:
             # 실패는 기록하지 않는다. 0이나 빈 값이 원장에 들어가면 되돌릴 수 없다.
             failed.append(f"{t}: {e}")
             continue
-        actual = f"{kind}/{rec['id']}"
-        if actual != t:
-            print(f"이름 변경: {t} -> {actual}", file=sys.stderr)
-        found[t] = (rec["_id"], rec["createdAt"])
-        rows += observations(now, rec, actual, metrics, "api")
-    print(f"collect: {append(rows)}행 추가, 대상 {len(found)}/{len(cfg['targets'])}")
+        if not recs:  # 소유자 오타나 만료된 토큰도 빈 목록으로 온다. 조용히 넘어가면 수집이 통째로 빠진다.
+            failed.append(f"{t}: 저장소가 하나도 없다")
+        for rec in recs:
+            actual = f"{kind}/{rec['id']}"
+            if not everything and actual != t:
+                print(f"이름 변경: {t} -> {actual}. targets.toml을 새 이름으로 고친다.", file=sys.stderr)
+            found[actual] = (rec["_id"], rec["createdAt"])
+            rows += observations(now, rec, actual, metrics, "api")
+    print(f"collect: {append(rows)}행 추가, 대상 {len(found)}개")
     for f in failed:
         print(f"수집 실패 {f}", file=sys.stderr)
     return cfg, found, failed
@@ -137,25 +153,13 @@ def fill(cfg, found, step, everything):
     import duckdb
 
     duckdb.connect().sql("INSTALL httpfs")
-    ledger = sorted(read(), key=lambda r: r["observed_at"])
-    by_name = {r["target"]: r["entity_id"] for r in ledger}  # 같은 이름이면 가장 최근 관측의 entity
-    done = {(r["origin"], r["entity_id"]) for r in ledger}
-    commits, p = [], 0
+    done = {(r["origin"], r["entity_id"]) for r in read()}
     # ponytail: 실행마다 커밋 목록 전체(약 50쪽)를 받는다. 느려지면 이미 본 sha에서 멈추게 한다.
-    while page := get(f"{HUB}/api/datasets/{STATS}/commits/main?limit=100&p={p}"):
-        commits += [(c["date"][:19] + "Z", c["id"], c["title"]) for c in page]
-        p += 1
+    commits = [(c["date"][:19] + "Z", c["id"], c["title"]) for c in get(f"{HUB}/api/datasets/{STATS}/commits/main?limit=100")]
     added = errors = 0
-    for kind in sorted({t.split("/")[0] for t in cfg["targets"]}):
-        # API가 실패한 대상(삭제 등)은 원장에 남은 entity_id로 찾는다. 그것도 없으면 건너뛴다.
-        ids = []
-        for t in (t for t in cfg["targets"] if t.startswith(kind + "/")):
-            if t in found or t in by_name:
-                ids.append(found[t][0] if t in found else by_name[t])
-            else:
-                print(f"backfill 건너뜀 {t}: API 실패, 원장 기록 없음", file=sys.stderr)
-        if not ids:
-            continue
+    for kind in sorted({t.split("/")[0] for t in found}):
+        # 지금 있는 대상만 채운다. 삭제된 대상은 있을 때 받아 둔 기록이 원장에 남아 있다.
+        ids = [i for t, (i, _) in found.items() if t.startswith(kind + "/")]
         created = {i: c for i, c in found.values()}
         where = "_id IN (" + ",".join("'" + i.replace("'", "''") + "'" for i in ids) + ")"
         snaps = [(date, sha) for date, sha, title in commits[::-1] if f"{kind}.parquet" in title][::step]
@@ -338,7 +342,9 @@ def plot(title, series, form="line", style="auto"):
 
 def card(title, series, style="auto"):
     """대상마다 한 칸: 지표와 이름, 현재값, 30일 전 대비 변화(그 무렵 관측이 있을 때만), 최근 90일 추세선."""
-    w, rh = 420, 100
+    # 글자 폭을 잴 수 없어 어림한다(한글은 두 칸). 긴 이름이 카드 밖으로 나가지 않게 폭을 늘린다.
+    widest = max(sum(2 if c > "⺀" else 1 for c in f"{title} · {name}") for _, name, _ in series)
+    w, rh = max(420, round(40 + 6.8 * widest)), 100
     marks, text = [], []
     for row, (n, name, pts) in enumerate(series):
         y, (now, value) = rh * row, pts[-1]
@@ -357,21 +363,36 @@ def card(title, series, style="auto"):
         lo, hi = min(v for _, v in recent), max(v for _, v in recent)
         t0, span = recent[0][0], max((now - recent[0][0]).total_seconds(), 1)
         sx = lambda d: w - 150 + 120 * (d - t0).total_seconds() / span
-        sy = lambda v: y + 72 - 44 * ((v - lo) / (hi - lo) if hi > lo else 0.5)
+        sy = lambda v: y + 86 - 40 * ((v - lo) / (hi - lo) if hi > lo else 0.5)  # 이름 줄 아래에 둔다
         line = " ".join(f"{sx(d):.1f},{sy(v):.1f}" for d, v in recent)
         # 추세선은 흐리게, 현재값 점만 대상 색으로
         marks.append(f'<polyline class="ln sm" points="{line}"/><circle class="f{n}" cx="{sx(now):.1f}" cy="{sy(value):.1f}" r="4"/>')
     return frame(w, rh * len(series), style, marks, text)
 
 
+def tracked(cfg, rows):
+    """원장에서 targets.toml에 해당하는 대상의 (entity_id, 최신 이름)을 처음 기록된 순서로 돌려준다.
+
+    HF에서 삭제된 대상도 기록이 있으면 들어간다. 이름이 바뀐 대상은 예전 이름으로도 찾고, 대소문자는 가리지 않는다.
+    """
+    # 원장은 시간순이 아니다(백필이 과거를 뒤에 붙인다). 이름은 가장 최근 관측의 것을 쓴다.
+    names, known = {}, {}
+    for r in sorted(rows, key=lambda r: r["observed_at"]):
+        names[r["entity_id"]] = r["target"]
+        known.setdefault(r["entity_id"], set()).add(r["target"].lower())
+    wanted = [t.lower() for t in cfg["targets"]]
+    order = dict.fromkeys(r["entity_id"] for r in rows)
+    return [(e, names[e]) for e in order if any(fnmatchcase(n, t) for n in known[e] for t in wanted)]
+
+
 def chart():
     cfg = tomllib.loads((ROOT / "targets.toml").read_text())
     rows = read()
-    # 원장은 시간순이 아니다(백필이 과거를 뒤에 붙인다). 이름은 가장 최근 관측의 것을 쓴다.
-    names = {r["entity_id"]: r["target"] for r in sorted(rows, key=lambda r: r["observed_at"])}
-    order = list(dict.fromkeys(r["entity_id"] for r in rows))  # 원장 등장 순서. 추가 전용이라 대상별 색이 바뀌지 않는다.
+    order = tracked(cfg, rows)
     if len(order) > len(SERIES):
-        sys.exit(f"차트는 대상 {len(SERIES)}개까지 그린다. 지금 {len(order)}개.")
+        # ponytail: 9번째부터는 그리지 않는다. 대상이 많아지면 차트별 대상 선택이나 상위 N개로 바꾼다.
+        print(f"chart: 대상 {len(order)}개 중 먼저 기록된 {len(SERIES)}개만 그린다", file=sys.stderr)
+        order = order[: len(SERIES)]
     (ROOT / "charts").mkdir(exist_ok=True)
     embeds = []
     for c in cfg["charts"]:
@@ -381,13 +402,13 @@ def chart():
         if form == "bars" and metric in GAUGES:
             sys.exit(f"charts 설정 오류: {metric}은 쌓이는 값이 아니라 bars(월별 증가)로 그릴 수 없다. line이나 area를 쓴다.")
         series = []
-        for n, e in enumerate(order):  # 지표가 없는 대상이 있어도 색 슬롯은 대상에 고정
+        for n, (e, name) in enumerate(order):  # 지표가 없는 대상이 있어도 색 슬롯은 대상에 고정
             pts = [(datetime.fromisoformat(r["observed_at"]), float(r["value"])) for r in rows if r["entity_id"] == e and r["metric"] == metric]
             pts.sort(key=lambda p: p[0])  # 같은 시각의 관측은 기록된 순서를 지킨다
             if form == "bars":
                 pts = monthly(pts)
             if pts:
-                series.append((n, names[e].split("/", 1)[1], pts))
+                series.append((n, name.split("/", 1)[1], pts))
         if not series:
             print(f"chart: {metric} {form} 건너뜀 (그릴 기록이 아직 부족함)", file=sys.stderr)
             continue
@@ -398,13 +419,31 @@ def chart():
             doc = plot(title + (f" · {series[0][1]}" if len(series) == 1 else ""), series, form, style)
         name = f"{metric}-{form}-{style}.svg"
         (ROOT / "charts" / name).write_text(doc)
-        embeds.append(f"![{title} ({form}, {style})](charts/{name})")
+        embeds.append((f"{title} ({form}, {style})", name))
         print(f"chart: charts/{name}")
-    # README의 <!-- charts --> 구간만 다시 쓴다. 표시가 없으면 README를 건드리지 않는다.
+    # README의 <!-- charts -->, <!-- embed --> 구간만 다시 쓴다. 표시가 없으면 README를 건드리지 않는다.
+    base = raw_base()
+    blocks = {
+        "charts": "\n\n".join(f"![{alt}](charts/{name})" for alt, name in embeds),
+        # Hugging Face 카드처럼 저장소 밖에서 쓸 절대 주소
+        "embed": "```markdown\n" + "\n\n".join(f"![{alt}]({base}/{name})" for alt, name in embeds) + "\n```" if base else "GitHub 원격 저장소가 없어 주소를 만들 수 없다.",
+    }
     readme = ROOT / "README.md"
     if readme.exists():
-        block = "<!-- charts -->\n" + "\n\n".join(embeds) + "\n<!-- /charts -->"
-        readme.write_text(re.sub(r"<!-- charts -->.*<!-- /charts -->", lambda _: block, readme.read_text(), flags=re.S))
+        text = readme.read_text()
+        for tag, body in blocks.items():
+            text = re.sub(f"<!-- {tag} -->.*<!-- /{tag} -->", lambda _: f"<!-- {tag} -->\n{body}\n<!-- /{tag} -->", text, flags=re.S)
+        readme.write_text(text)
+
+
+def raw_base():
+    """charts/를 저장소 밖에서 불러올 주소. origin이 GitHub가 아니면 None."""
+    try:
+        url = subprocess.run(["git", "-C", str(ROOT), "remote", "get-url", "origin"], capture_output=True, text=True).stdout
+    except OSError:
+        return None
+    m = re.search(r"github\.com[:/](.+?)(?:\.git)?\s*$", url)
+    return m and f"https://raw.githubusercontent.com/{m[1]}/HEAD/charts"
 
 
 def selftest():
@@ -429,6 +468,14 @@ def selftest():
     assert monthly([(day(1, 1), 50.0), (day(2, 1), 20.0), (day(3, 1), 20.0)])[0][1] == 0.0  # 2월: 20 -> 20
     assert scale(-20, 15)[:2] == (-20, 20) and scale(0, 0)[1] > 0
     assert "01-01" in plot("x", [(0, "a", [(t, 1.0)])])  # 한 달 안의 관측만 있어도 x축 눈금이 있다
+    led = [
+        dict(observed_at="2026-01-02", entity_id="b", target="datasets/o/new"),
+        dict(observed_at="2026-01-01", entity_id="b", target="datasets/o/old"),
+        dict(observed_at="2026-01-01", entity_id="c", target="datasets/x/y"),
+    ]
+    assert tracked({"targets": ["datasets/o/*"]}, led) == [("b", "datasets/o/new")]  # 소유자 전체, 최신 이름
+    assert tracked({"targets": ["datasets/X/y"]}, led) == [("c", "datasets/x/y")]  # 대소문자 무시
+    assert tracked({"targets": ["datasets/o/old"]}, led) == [("b", "datasets/o/new")]  # 예전 이름으로 적혀 있어도
     # 과거를 못 채워도 backfill은 실패가 아니다 (현재값 수집 결과만 돌려준다)
     g, saved = globals(), (collect, fill)
     g["collect"], g["fill"] = lambda: ({}, {}, []), lambda *a: 1 / 0
