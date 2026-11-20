@@ -30,7 +30,10 @@ The records we collect must remain even if Hugging Face resets its own.
 | Targets can be `<kind>/<owner>/*` | The owner's repositories are looked up on every run, so new ones are tracked automatically. A deleted one stops being collected; its records and chart line remain. |
 | Metrics are listed per kind | Spaces have no download metrics. |
 | Charts are static SVG | They embed in READMEs and Hugging Face cards and follow light/dark mode. |
-| Chart form and style come from `[[charts]]` in `targets.toml` | Forms: line, area, bars, card. Styles: auto, light, dark, sketch. |
+| The default is one `summary` chart | Five charts in mixed forms and styles were hard to read. One panel answers the three questions a visitor has: how much (the total), is it growing (30-day change and the stacked history), and which repositories matter (the table, largest first). |
+| The stack's top edge is the header total | The big number and the picture say the same thing. The five largest targets get a layer; the rest fold into "Other". |
+| 30-day change needs an observation within 3 days of 30 days ago | Otherwise a gap in collection, or a repository tracked late, would report older growth as recent. Such rows show a dash. |
+| Other forms and styles stay available in `[[charts]]` | Forms: summary, line, area, bars. Styles: auto, light, dark, sketch. |
 | Monthly bars interpolate the value at month boundaries | A missing month-end snapshot does not distort month length. Incomplete months are not drawn. |
 | Past snapshots are never looked up by name | A different repository recreated under the same name would be mixed in. |
 | A failed backfill does not fail the run | If the snapshot source is gone or a target is not in it, history simply starts on the day collection begins. |
@@ -56,7 +59,7 @@ The records we collect must remain even if Hugging Face resets its own.
 
 ## Known limits
 
-- Charts draw at most 8 targets; with more, only the first 8 recorded are drawn.
+- Line, area and bar charts draw at most 8 targets. The summary counts all of them, but past 8 its colors repeat.
 - Every chart draws all tracked targets. There is no per-chart target selection yet.
 - A day when a target was absent from a snapshot is queried again on every run.
 
@@ -65,4 +68,6 @@ The records we collect must remain even if Hugging Face resets its own.
 - Round 1 (plan): 7 points, 6 adopted. Dropped automatic offset correction, keyed targets by `_id`, UTC times, per-kind metrics, live collection first, no instant-lookup web page.
 - Round 2 (code): 8 bugs, all fixed. Among them: observations lost when a value returned the same day, the card comparing against 37 days ago while saying 30, and distorted month lengths in the bars.
 - Round 3 (workflow, wildcards, embed): 6 points, 4 adopted (empty listings fail the run, paginated listings, rename and case matching, workflow step conditions and `git add`). Not adopted: color slots fixed across the whole ledger (colors shift only on a deliberate config change), and full-history clones in the workflow (a failed push loses one day of live values, which the next run backfills).
+- Round 4 (simplification): agreed on one panel; adopted the stacked area, the sorted table, and dropping the owner prefix.
+- Round 5 (summary code): 7 points, all fixed. Among them: targets past the 8th missing from the total, 30-day change inflated by gaps and late-tracked repositories, the layer stroke hiding thin layers and the axis, and an empty chart on the first day of collection.
 - Two claims from the reviews were not verified independently: a `huggingface_hub` issue number about decreasing totals, and a counting change in September 2024 (the data shows 2024-10-22).

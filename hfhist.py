@@ -191,16 +191,16 @@ def fill(cfg, found, step, everything):
 # Charts --------------------------------------------------------------------
 
 TITLES = {"downloadsAllTime": "Total downloads", "downloads": "Downloads, last 30 days", "likes": "Likes", "trendingScore": "Trending score"}
-FORMS = ("line", "area", "bars", "card")
+FORMS = ("summary", "line", "area", "bars")
 STYLES = ("auto", "light", "dark", "sketch")
-GAUGES = {"downloads", "trendingScore"}  # not cumulative, so a monthly increase is meaningless
+GAUGES = {"downloads", "trendingScore"}  # not cumulative, so totals and monthly increases are meaningless
 SERIES = [  # (light, dark) categorical colors. The order is what keeps them colorblind-safe; do not reorder.
     ("#2a78d6", "#3987e5"), ("#eb6834", "#d95926"), ("#1baf7a", "#199e70"), ("#eda100", "#c98500"),
     ("#e87ba4", "#d55181"), ("#008300", "#008300"), ("#6250d6", "#9085e9"), ("#e34948", "#e66767"),
 ]
 INK = {  # role: (light, dark)
     ".bg{fill:%s}": ("#fcfcfb", "#1a1a19"), ".t1{fill:%s}": ("#0b0b0b", "#f0efec"), ".t2{fill:%s}": ("#52514e", "#c3c2b7"),
-    ".mu{fill:%s}": ("#898781", "#898781"), ".sm{stroke:%s}": ("#898781", "#898781"),
+    ".mu{fill:%s}": ("#898781", "#898781"), ".fo{fill:%s}": ("#898781", "#898781"), ".gap{stroke:%s}": ("#fcfcfb", "#1a1a19"),
     ".grid{stroke:%s}": ("#e1e0d9", "#2c2c2a"), ".axis{stroke:%s}": ("#c3c2b7", "#383835"),
 }
 W = 800
@@ -212,6 +212,11 @@ def compact(v):
         if abs(v) >= div:
             return f"{v / div:g}{suffix}"
     return f"{v:g}"
+
+
+def exact(v):
+    """Full digits with thousands separators for whole numbers, compact otherwise."""
+    return f"{v:,.0f}" if v == int(v) else compact(v)
 
 
 def frame(w, h, style, marks, text):
@@ -232,7 +237,7 @@ def frame(w, h, style, marks, text):
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" width="{w}" height="{h}" font-family="{font}" font-size="12">\n'
         f"<style>{colors}.ln{{fill:none;stroke-width:{3 if sketch else 2};stroke-linejoin:round;stroke-linecap:round}}"
-        f".wash{{opacity:.1}}.tk{{font-variant-numeric:tabular-nums}}</style>{wobble if sketch else ''}\n"
+        f".wash{{opacity:.1}}.gap{{fill:none;stroke-width:1;stroke-linejoin:round}}.tk{{font-variant-numeric:tabular-nums}}</style>{wobble if sketch else ''}\n"
         f'<rect class="bg" width="{w}" height="{h}" rx="8"/>\n'
         f'<g{" filter=\"url(#sk)\"" if sketch else ""}>\n' + "\n".join(marks) + "\n</g>\n" + "\n".join(text) + "\n</svg>\n"
     )
@@ -287,6 +292,16 @@ def column(x, w, y0, y1):
     )
 
 
+def time_axis(times, left, right):
+    """The x scale over the observed range and its month ticks."""
+    first, x0, x1 = times[0], times[0].timestamp(), times[-1].timestamp()
+    X = lambda d: left + (right - left) * ((d.timestamp() - x0) / (x1 - x0) if x1 > x0 else 1)
+    starts = month_starts(first, times[-1])
+    ticks = [(d, f"{d:%Y-%m}") for d in starts[:: max(1, math.ceil(len(starts) / 7))]]
+    # with observations inside a single month there are no month ticks, so use the first and last day
+    return X, ticks or [(d, f"{d:%m-%d}") for d in dict.fromkeys((first, times[-1]))]
+
+
 def plot(title, series, form="line", style="auto"):
     """series: [(color slot, name, [(datetime, value), ...])]. form: line | area | bars (monthly increase)."""
     L, R, T, PH = 56, 64, 52, 300
@@ -303,12 +318,7 @@ def plot(title, series, form="line", style="auto"):
         X = lambda d: L + band * (times.index(d) + 0.5)
         ticks = [(d, f"{d:%Y-%m}") for d in times[:: max(1, math.ceil(len(times) / 7))]]
     else:
-        first, x0, x1 = times[0], times[0].timestamp(), times[-1].timestamp()
-        X = lambda d: L + (W - L - R) * ((d.timestamp() - x0) / (x1 - x0) if x1 > x0 else 1)
-        starts = month_starts(first, times[-1])
-        ticks = [(d, f"{d:%Y-%m}") for d in starts[:: max(1, math.ceil(len(starts) / 7))]]
-        # with observations inside a single month there are no month ticks, so use the first and last day
-        ticks = ticks or [(d, f"{d:%m-%d}") for d in dict.fromkeys((first, times[-1]))]
+        X, ticks = time_axis(times, L, W - R)
     marks = []
     text = [f'<text class="t1" x="{L}" y="30" font-size="16" font-weight="600">{html.escape(title)}</text>']
     for i in range(round(ymin / tick), round(ymax / tick) + 1):
@@ -341,34 +351,93 @@ def plot(title, series, form="line", style="auto"):
     return frame(W, H, style, marks, text)
 
 
-def card(title, series, style="auto"):
-    """One row per target: metric and name, current value, change vs 30 days ago (only if observed around then), 90-day trend."""
-    # Text cannot be measured here, so estimate (CJK counts double) and widen the card for long names.
-    widest = max(sum(2 if c > "\u2e80" else 1 for c in f"{title} · {name}") for _, name, _ in series)
-    w, rh = max(420, round(40 + 6.8 * widest)), 100
-    marks, text = [], []
-    for row, (n, name, pts) in enumerate(series):
-        y, (now, value) = rh * row, pts[-1]
-        if row:
-            marks.append(f'<line class="grid" x1="20" x2="{w - 20}" y1="{y}" y2="{y}"/>')
-        text.append(f'<text class="t2" x="20" y="{y + 28}">{html.escape(title)} · {html.escape(name)}</text>')
-        shown = compact(value) if abs(value) >= 1e4 or value != int(value) else f"{value:,.0f}"
-        text.append(f'<text class="t1" x="20" y="{y + 62}" font-size="28" font-weight="600">{shown}</text>')
-        ago = now - timedelta(days=30)
-        then, old = min(pts, key=lambda p: abs(p[0] - ago))
-        if abs(then - ago) <= timedelta(days=3):  # without an observation near 30 days ago, do not call some other span 30 days
-            delta = value - old
-            arrow = "▲" if delta > 0 else "▼" if delta < 0 else "–"
-            text.append(f'<text class="t2 tk" x="20" y="{y + 84}">{arrow} {compact(abs(delta))} · vs 30 days ago</text>')
-        recent = [(d, v) for d, v in pts if (now - d).days <= 90]
-        lo, hi = min(v for _, v in recent), max(v for _, v in recent)
-        t0, span = recent[0][0], max((now - recent[0][0]).total_seconds(), 1)
-        sx = lambda d: w - 150 + 120 * (d - t0).total_seconds() / span
-        sy = lambda v: y + 86 - 40 * ((v - lo) / (hi - lo) if hi > lo else 0.5)  # below the name line
-        line = " ".join(f"{sx(d):.1f},{sy(v):.1f}" for d, v in recent)
-        # trend in a muted stroke; only the current-value dot wears the target color
-        marks.append(f'<polyline class="ln sm" points="{line}"/><circle class="f{n}" cx="{sx(now):.1f}" cy="{sy(value):.1f}" r="4"/>')
-    return frame(w, rh * len(series), style, marks, text)
+def value_at(pts, t):
+    """The last value observed at or before t, or 0 before the first observation."""
+    i = bisect.bisect_right(pts, t, key=lambda p: p[0])
+    return pts[i - 1][1] if i else 0
+
+
+def grew(pts, ago):
+    """Increase since `ago`, or None when it cannot be told.
+
+    Uses the observation nearest to `ago` when one lies within 3 days. A target first seen after `ago` counts
+    only what it gained since then, so a repository tracked late does not report its lifetime total as recent growth.
+    """
+    then, old = min(pts, key=lambda p: abs(p[0] - ago))
+    if abs(then - ago) <= timedelta(days=3):
+        return pts[-1][1] - old
+    return pts[-1][1] - pts[0][1] if pts[0][0] > ago else None
+
+
+def summary(title, series, style="auto"):
+    """One panel to read at a glance: the total, its history as a stacked area, and a table that is also the legend.
+
+    series: [(color slot, name, [(datetime, value), ...])]. The top edge of the stack is the total in the header.
+    The five largest targets get their own layer and row; the rest are folded into "Other".
+    """
+    PAD, L, T, PH, ROW = 24, 56, 92, 200, 24
+    series = sorted(series, key=lambda s: -s[2][-1][1])
+    grid = sorted({d for _, _, pts in series for d, _ in pts})
+    now, ago = grid[-1], grid[-1] - timedelta(days=30)
+    if len(grid) > 300:  # daily points over years add nothing at this width
+        grid = sorted({*grid[:: math.ceil(len(grid) / 300)], now})
+    # ponytail: a target first recorded long after it was created enters the stack as a step, not a ramp.
+    rows = [(f"f{n}", name, [pts]) for n, name, pts in series[:5]]
+    if series[5:]:
+        rows.append(("fo", f"Other ({len(series) - 5})", [pts for _, _, pts in series[5:]]))
+    at = lambda group, t: sum(value_at(pts, t) for pts in group)
+    totals = [at(group, now) for _, _, group in rows]
+    total = sum(totals)
+    # 30-day change per row: the sum over its targets where it can be told, None where it cannot for any
+    changes = [sum(known) if (known := [g for pts in group if (g := grew(pts, ago)) is not None]) else None for _, _, group in rows]
+    # with under 30 days of history overall there is no 30-day change to show
+    monthly_col = min(pts[0][0] for _, _, pts in series) <= ago and any(c is not None for c in changes)
+    fmt = compact if total >= 1e6 else exact  # the two header numbers share one precision
+    signed = lambda v, f=exact: ("+" if v > 0 else "−" if v < 0 else "") + f(abs(v))
+
+    stack = [[0.0] * len(grid)]
+    for _, _, group in rows:
+        stack.append([low + at(group, t) for low, t in zip(stack[-1], grid)])
+    ymin, ymax, tick = scale(0, max(stack[-1]))
+    Y = lambda v: T + PH * (ymax - v) / (ymax - ymin)
+    X, ticks = time_axis(grid, L, W - PAD)
+    xs = [X(t) for t in grid]
+    if len(grid) == 1:  # first day of collection: a flat band instead of an invisible sliver
+        xs, stack = [L, W - PAD], [level * 2 for level in stack]
+    path = lambda level: [f"{x:.1f},{Y(v):.1f}" for x, v in zip(xs, level)]
+
+    marks = [f'<line class="grid" x1="{L}" x2="{W - PAD}" y1="{Y(i * tick):.1f}" y2="{Y(i * tick):.1f}"/>' for i in range(1, round(ymax / tick) + 1)]
+    marks += [f'<polygon class="{cls}" points="{" ".join(path(high) + path(low)[::-1])}"/>' for (cls, _, _), low, high in zip(rows, stack, stack[1:])]
+    # a hairline in the surface color separates the layers; the axis is drawn last so nothing covers it
+    marks += [f'<polyline class="gap" points="{" ".join(path(level))}"/>' for level in stack[1:-1]]
+    marks.append(f'<line class="axis" x1="{L}" x2="{W - PAD}" y1="{Y(0):.1f}" y2="{Y(0):.1f}"/>')
+
+    head = f'<tspan class="t1" font-size="30" font-weight="600">{fmt(total)}</tspan>'
+    if monthly_col:
+        head += f'<tspan class="t2 tk" dx="12" font-size="13">{signed(sum(c for c in changes if c is not None), fmt)} in the last 30 days</tspan>'
+    text = [
+        f'<text class="t2" x="{PAD}" y="30" font-size="13">{html.escape(title)}</text>',
+        f'<text class="mu tk" x="{W - PAD}" y="30" text-anchor="end">Updated {now:%Y-%m-%d}</text>',
+        f'<text x="{PAD}" y="68">{head}</text>',
+    ]
+    text += [f'<text class="mu tk" x="{L - 8}" y="{Y(i * tick) + 4:.1f}" text-anchor="end">{compact(i * tick)}</text>' for i in range(round(ymax / tick) + 1)]
+    text += [f'<text class="mu tk" x="{X(d):.1f}" y="{T + PH + 18}" text-anchor="middle">{label}</text>' for d, label in ticks]
+
+    c_total, c_change, y = W - PAD - (110 if monthly_col else 0), W - PAD, T + PH + 52
+    room = int((c_total - 80 - PAD - 20) / 7.5)  # rough character budget for a name before the Total column
+    text.append(f'<text class="mu" x="{c_total}" y="{y}" text-anchor="end">Total</text>')
+    if monthly_col:
+        text.append(f'<text class="mu" x="{c_change}" y="{y}" text-anchor="end">Last 30 days</text>')
+    marks.append(f'<line class="grid" x1="{PAD}" x2="{W - PAD}" y1="{y + 9}" y2="{y + 9}"/>')
+    for (cls, name, _), value, change in zip(rows, totals, changes):
+        y += ROW
+        name = name if len(name) <= room else name[: room - 1] + "…"
+        marks.append(f'<circle class="{cls}" cx="{PAD + 5}" cy="{y - 4}" r="5"/>')
+        text.append(f'<text class="t1" x="{PAD + 20}" y="{y}" font-size="13">{html.escape(name)}</text>')
+        text.append(f'<text class="t1 tk" x="{c_total}" y="{y}" font-size="13" text-anchor="end">{exact(value)}</text>')
+        if monthly_col:
+            text.append(f'<text class="t2 tk" x="{c_change}" y="{y}" font-size="13" text-anchor="end">{"—" if change is None else signed(change)}</text>')
+    return frame(W, y + 20, style, marks, text)
 
 
 def tracked(cfg, rows):
@@ -391,38 +460,44 @@ def chart():
     cfg = tomllib.loads((ROOT / "targets.toml").read_text())
     rows = read()
     order = tracked(cfg, rows)
-    if len(order) > len(SERIES):
-        # ponytail: the 9th target onward is not drawn. With many targets, add per-chart target selection or top-N.
-        print(f"chart: drawing only the first {len(SERIES)} of {len(order)} targets", file=sys.stderr)
-        order = order[: len(SERIES)]
     (ROOT / "charts").mkdir(exist_ok=True)
     embeds = []
     for c in cfg["charts"]:
         metric, form, style = c["metric"], c.get("form", "line"), c.get("style", "auto")
         if form not in FORMS or style not in STYLES:
             sys.exit(f"charts config error: form must be one of {FORMS} and style one of {STYLES}. Got: {form}, {style}")
-        if form == "bars" and metric in GAUGES:
-            sys.exit(f"charts config error: {metric} is not cumulative, so it cannot be drawn as bars (monthly increase). Use line or area.")
+        if form in ("bars", "summary") and metric in GAUGES:
+            sys.exit(f"charts config error: {metric} is not cumulative, so it cannot be drawn as {form}. Use line or area.")
         series = []
-        for n, (e, name) in enumerate(order):  # the color slot stays with the target even when some targets lack the metric
+        # ponytail: line, area and bars draw only the first 8 targets recorded. The summary takes all of them and folds
+        # the tail into "Other"; past 8 targets its colors repeat, so two of the top five could share one.
+        shown = order if form == "summary" else order[: len(SERIES)]
+        for n, (e, name) in enumerate(shown):  # the color slot stays with the target even when some targets lack the metric
             pts = [(datetime.fromisoformat(r["observed_at"]), float(r["value"])) for r in rows if r["entity_id"] == e and r["metric"] == metric]
             pts.sort(key=lambda p: p[0])  # observations at the same instant keep their recorded order
             if form == "bars":
                 pts = monthly(pts)
             if pts:
-                series.append((n, name.split("/", 1)[1], pts))
+                series.append((n % len(SERIES), name.split("/", 1)[1], pts))
         if not series:
             print(f"chart: skipped {metric} {form} (not enough records yet)", file=sys.stderr)
             continue
         title = TITLES.get(metric, metric) + (", monthly increase" if form == "bars" else "")
-        if form == "card":
-            doc = card(title, series, style)
-        else:
-            doc = plot(title + (f" · {series[0][1]}" if len(series) == 1 else ""), series, form, style)
+        # When every target has the same owner, say it once in the title instead of on every row.
+        owners = {name.rpartition("/")[0] for _, name, _ in series}
+        if len(series) == 1:
+            title += f" · {series[0][1]}"
+        elif len(owners) == 1 and owners != {""}:
+            title += f" · {owners.pop()}"
+            series = [(n, name.rpartition("/")[2], pts) for n, name, pts in series]
+        doc = summary(title, series, style) if form == "summary" else plot(title, series, form, style)
         name = f"{metric}-{form}-{style}.svg"
         (ROOT / "charts" / name).write_text(doc)
-        embeds.append((f"{title} ({form}, {style})", name))
+        embeds.append((title, name))
         print(f"chart: charts/{name}")
+    for old in (ROOT / "charts").glob("*.svg"):  # charts no longer in the config
+        if old.name not in {name for _, name in embeds}:
+            old.unlink()
     # Rewrite only the <!-- charts --> and <!-- embed --> blocks of the README. Without the markers it is left alone.
     base = raw_base()
     blocks = {
@@ -470,6 +545,17 @@ def selftest():
     assert monthly([(day(1, 1), 50.0), (day(2, 1), 20.0), (day(3, 1), 20.0)])[0][1] == 0.0  # February: 20 -> 20
     assert scale(-20, 15)[:2] == (-20, 20) and scale(0, 0)[1] > 0
     assert "01-01" in plot("x", [(0, "a", [(t, 1.0)])])  # x ticks exist even with observations inside one month
+    # summary: the header total is the sum of the latest values, with one layer per target
+    two = [(0, "a", [(day(1, 1), 100.0), (day(1, 30), 400.0), (day(3, 1), 1500.0)]), (1, "b", [(day(2, 1), 40.0), (day(3, 1), 500.0)])]
+    doc = summary("x", two)  # as of Mar 1; 30 days ago is Jan 30: a grew 1500-400, b (nearest Feb 1) 500-40
+    assert ">2,000<" in doc and doc.count("<polygon") == 2 and "+1,560 in the last 30 days" in doc, doc[:600]
+    assert value_at(two[1][2], day(1, 15)) == 0 and value_at(two[1][2], day(2, 15)) == 40.0
+    assert grew([(day(1, 1), 100.0), (day(3, 1), 900.0)], day(1, 30)) is None  # a gap around 30 days ago: unknown, not 800
+    assert grew([(day(2, 20), 100000.0), (day(3, 1), 100050.0)], day(1, 30)) == 50.0  # tracked late: only growth since first seen
+    assert "Last 30 days" not in summary("x", [(0, "a", [(day(3, 1), 5.0), (day(3, 9), 9.0)])])  # under 30 days of history
+    assert "<polygon" in summary("x", [(0, "a", [(day(3, 1), 5.0)])])  # a single day still draws
+    many = [(i % 8, f"t{i}", [(day(1, 1), 0.0), (day(3, 1), 10.0 + i)]) for i in range(9)]
+    assert ">126<" in summary("x", many) and "Other (4)" in summary("x", many)  # all 9 targets count toward the total
     led = [
         dict(observed_at="2026-01-02", entity_id="b", target="datasets/o/new"),
         dict(observed_at="2026-01-01", entity_id="b", target="datasets/o/old"),

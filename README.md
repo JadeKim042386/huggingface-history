@@ -5,15 +5,7 @@ This project records them every day and draws the history as charts.
 Records are only ever appended to `data/ledger.csv`, so they survive even if the numbers on Hugging Face are reset.
 
 <!-- charts -->
-![Total downloads (card, auto)](charts/downloadsAllTime-card-auto.svg)
-
-![Total downloads (line, sketch)](charts/downloadsAllTime-line-sketch.svg)
-
-![Total downloads, monthly increase (bars, auto)](charts/downloadsAllTime-bars-auto.svg)
-
-![Downloads, last 30 days (area, light)](charts/downloads-area-light.svg)
-
-![Likes (line, dark)](charts/likes-line-dark.svg)
+![Total downloads · Spatial1ntelligence](charts/downloadsAllTime-summary-auto.svg)
 <!-- /charts -->
 
 ## Embed in a Hugging Face card
@@ -24,15 +16,7 @@ The GitHub repository must be public for the images to load.
 
 <!-- embed -->
 ```markdown
-![Total downloads (card, auto)](https://raw.githubusercontent.com/JadeKim042386/huggingface-history/HEAD/charts/downloadsAllTime-card-auto.svg)
-
-![Total downloads (line, sketch)](https://raw.githubusercontent.com/JadeKim042386/huggingface-history/HEAD/charts/downloadsAllTime-line-sketch.svg)
-
-![Total downloads, monthly increase (bars, auto)](https://raw.githubusercontent.com/JadeKim042386/huggingface-history/HEAD/charts/downloadsAllTime-bars-auto.svg)
-
-![Downloads, last 30 days (area, light)](https://raw.githubusercontent.com/JadeKim042386/huggingface-history/HEAD/charts/downloads-area-light.svg)
-
-![Likes (line, dark)](https://raw.githubusercontent.com/JadeKim042386/huggingface-history/HEAD/charts/likes-line-dark.svg)
+![Total downloads · Spatial1ntelligence](https://raw.githubusercontent.com/JadeKim042386/huggingface-history/HEAD/charts/downloadsAllTime-summary-auto.svg)
 ```
 <!-- /embed -->
 

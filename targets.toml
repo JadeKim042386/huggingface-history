@@ -12,30 +12,10 @@ datasets = ["downloadsAllTime", "downloads", "likes", "trendingScore"]
 models = ["downloadsAllTime", "downloads", "likes", "trendingScore"]
 spaces = ["likes", "trendingScore"]
 
-# Charts shown in the README, in this order.
-#   form:  line | area | bars (monthly increase) | card (current value)
+# Charts shown in the README, in this order. One summary is enough to read at a glance.
+#   form:  summary (total, stacked history, and a table) | line | area | bars (monthly increase)
 #   style: auto (follows the viewer's light/dark setting) | light | dark | sketch (hand-drawn)
 [[charts]]
 metric = "downloadsAllTime"
-form = "card"
+form = "summary"
 style = "auto"
-
-[[charts]]
-metric = "downloadsAllTime"
-form = "line"
-style = "sketch"
-
-[[charts]]
-metric = "downloadsAllTime"
-form = "bars"
-style = "auto"
-
-[[charts]]
-metric = "downloads"
-form = "area"
-style = "light"
-
-[[charts]]
-metric = "likes"
-form = "line"
-style = "dark"
