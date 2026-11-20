@@ -1,0 +1,35 @@
+name: collect
+
+on:
+  schedule:
+    - cron: "17 3 * * *" # 매일 03:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency: collect
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: command -v uv || pipx install uv
+      # 현재값을 기록하고, 공개 스냅샷에서 빠진 과거를 채운다. 첫 실행은 20분쯤 걸린다.
+      - run: ./hfhist.py backfill
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }} # 비공개 저장소를 추적할 때만 필요
+      - run: ./hfhist.py chart
+        if: always()
+      # 일부 대상이 실패해도 모은 기록은 올린다
+      - name: commit
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data charts README.md
+          git diff --cached --quiet && exit 0
+          git commit -m "collect $(date -u +%F)"
+          git pull --rebase
+          git push

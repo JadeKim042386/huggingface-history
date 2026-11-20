@@ -1,0 +1,38 @@
+# 히스토리를 남길 대상. "<종류>/<id>" 형식이고 종류는 datasets | models | spaces.
+targets = [
+  "datasets/rajpurkar/squad",
+]
+
+# 종류별로 남길 지표. HF API의 expand 필드 이름 그대로 쓴다.
+[metrics]
+datasets = ["downloadsAllTime", "downloads", "likes", "trendingScore"]
+models = ["downloadsAllTime", "downloads", "likes", "trendingScore"]
+spaces = ["likes", "trendingScore"]
+
+# README에 넣을 차트. 위에서부터 순서대로 실린다.
+#   form:  line(선) | area(면) | bars(월별 증가 막대) | card(현재값 카드)
+#   style: auto(보는 사람의 라이트/다크) | light | dark | sketch(손그림)
+[[charts]]
+metric = "downloadsAllTime"
+form = "card"
+style = "auto"
+
+[[charts]]
+metric = "downloadsAllTime"
+form = "line"
+style = "sketch"
+
+[[charts]]
+metric = "downloadsAllTime"
+form = "bars"
+style = "auto"
+
+[[charts]]
+metric = "downloads"
+form = "area"
+style = "light"
+
+[[charts]]
+metric = "likes"
+form = "line"
+style = "dark"
