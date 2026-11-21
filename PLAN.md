@@ -30,8 +30,8 @@ The records we collect must remain even if Hugging Face resets its own.
 | Targets can be `<kind>/<owner>/*` | The owner's repositories are looked up on every run, so new ones are tracked automatically. A deleted one stops being collected; its records and chart line remain. |
 | Metrics are listed per kind | Spaces have no download metrics. |
 | Charts are static SVG | They embed in READMEs and Hugging Face cards and follow light/dark mode. |
-| The default is one `summary` chart | Five charts in mixed forms and styles were hard to read. One panel answers the three questions a visitor has: how much (the total), is it growing (30-day change and the stacked history), and which repositories matter (the table, largest first). |
-| The stack's top edge is the header total | The big number and the picture say the same thing. The five largest targets get a layer; the rest fold into "Other". |
+| The default is one `summary` chart | Five charts in mixed forms and styles were hard to read. One panel answers the three questions a visitor has: how much (the total), is it growing (30-day change and the lines), and which repositories matter (the table, largest first). |
+| Lines are not stacked | A stacked area was tried first and read wrongly: the top of a layer looks like that repository's value but is a running sum. Each line now sits at its own value, the number in its table row, and ends in the same dot as that row. The five largest targets get a line; the rest fold into "Other". |
 | 30-day change needs an observation within 3 days of 30 days ago | Otherwise a gap in collection, or a repository tracked late, would report older growth as recent. Such rows show a dash. |
 | Other forms and styles stay available in `[[charts]]` | Forms: summary, line, area, bars. Styles: auto, light, dark, sketch. |
 | Monthly bars interpolate the value at month boundaries | A missing month-end snapshot does not distort month length. Incomplete months are not drawn. |
@@ -59,7 +59,7 @@ The records we collect must remain even if Hugging Face resets its own.
 
 ## Known limits
 
-- Line, area and bar charts draw at most 8 targets. The summary counts all of them, but past 8 its colors repeat.
+- Line, area and bar charts draw at most 8 targets. The summary counts all of them and draws the five largest.
 - Every chart draws all tracked targets. There is no per-chart target selection yet.
 - A day when a target was absent from a snapshot is queried again on every run.
 

@@ -200,7 +200,7 @@ SERIES = [  # (light, dark) categorical colors. The order is what keeps them col
 ]
 INK = {  # role: (light, dark)
     ".bg{fill:%s}": ("#fcfcfb", "#1a1a19"), ".t1{fill:%s}": ("#0b0b0b", "#f0efec"), ".t2{fill:%s}": ("#52514e", "#c3c2b7"),
-    ".mu{fill:%s}": ("#898781", "#898781"), ".fo{fill:%s}": ("#898781", "#898781"), ".gap{stroke:%s}": ("#fcfcfb", "#1a1a19"),
+    ".mu{fill:%s}": ("#898781", "#898781"), ".ring{stroke:%s}": ("#fcfcfb", "#1a1a19"),
     ".grid{stroke:%s}": ("#e1e0d9", "#2c2c2a"), ".axis{stroke:%s}": ("#c3c2b7", "#383835"),
 }
 W = 800
@@ -237,7 +237,7 @@ def frame(w, h, style, marks, text):
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" width="{w}" height="{h}" font-family="{font}" font-size="12">\n'
         f"<style>{colors}.ln{{fill:none;stroke-width:{3 if sketch else 2};stroke-linejoin:round;stroke-linecap:round}}"
-        f".wash{{opacity:.1}}.gap{{fill:none;stroke-width:1;stroke-linejoin:round}}.tk{{font-variant-numeric:tabular-nums}}</style>{wobble if sketch else ''}\n"
+        f".wash{{opacity:.1}}.ring{{stroke-width:2}}.tk{{font-variant-numeric:tabular-nums}}</style>{wobble if sketch else ''}\n"
         f'<rect class="bg" width="{w}" height="{h}" rx="8"/>\n'
         f'<g{" filter=\"url(#sk)\"" if sketch else ""}>\n' + "\n".join(marks) + "\n</g>\n" + "\n".join(text) + "\n</svg>\n"
     )
@@ -370,21 +370,24 @@ def grew(pts, ago):
 
 
 def summary(title, series, style="auto"):
-    """One panel to read at a glance: the total, its history as a stacked area, and a table that is also the legend.
+    """One panel to read at a glance: the total, one line per target, and a table that is also the legend.
 
-    series: [(color slot, name, [(datetime, value), ...])]. The top edge of the stack is the total in the header.
-    The five largest targets get their own layer and row; the rest are folded into "Other".
+    series: [(color slot, name, [(datetime, value), ...])]. Lines are not stacked: the height of a line is the
+    target's own value, the same number as in its table row. The header is the sum of the rows.
+    The five largest targets get their own line and row; the rest are folded into an "Other" row without a line.
     """
     PAD, L, T, PH, ROW = 24, 56, 92, 200, 24
     series = sorted(series, key=lambda s: -s[2][-1][1])
     grid = sorted({d for _, _, pts in series for d, _ in pts})
     now, ago = grid[-1], grid[-1] - timedelta(days=30)
-    if len(grid) > 300:  # daily points over years add nothing at this width
-        grid = sorted({*grid[:: math.ceil(len(grid) / 300)], now})
-    # ponytail: a target first recorded long after it was created enters the stack as a step, not a ramp.
-    rows = [(f"f{n}", name, [pts]) for n, name, pts in series[:5]]
+    rows, used = [], set()
+    for n, name, pts in series[:5]:
+        while n in used:  # past 8 targets two can share a color slot; move one to the next free color
+            n = (n + 1) % len(SERIES)
+        used.add(n)
+        rows.append((n, name, [pts]))
     if series[5:]:
-        rows.append(("fo", f"Other ({len(series) - 5})", [pts for _, _, pts in series[5:]]))
+        rows.append((None, f"Other ({len(series) - 5})", [pts for _, _, pts in series[5:]]))
     at = lambda group, t: sum(value_at(pts, t) for pts in group)
     totals = [at(group, now) for _, _, group in rows]
     total = sum(totals)
@@ -395,26 +398,27 @@ def summary(title, series, style="auto"):
     fmt = compact if total >= 1e6 else exact  # the two header numbers share one precision
     signed = lambda v, f=exact: ("+" if v > 0 else "−" if v < 0 else "") + f(abs(v))
 
-    stack = [[0.0] * len(grid)]
-    for _, _, group in rows:
-        stack.append([low + at(group, t) for low, t in zip(stack[-1], grid)])
-    ymin, ymax, tick = scale(0, max(stack[-1]))
+    # A line is the target's own observations: it starts when the target was first seen and stops when it was last
+    # seen, so a deleted repository does not run on to today. "Other" is a sum, which would dwarf the single
+    # repositories in an unstacked chart, so it has a row but no line.
+    thin = lambda pts: pts if len(pts) <= 300 else [*pts[:: math.ceil(len(pts) / 300)], pts[-1]]  # daily points over years add nothing
+    lines = [(n, thin(group[0])) for n, _, group in rows if n is not None]
+    ymin, ymax, tick = scale(0, max(v for _, line in lines for _, v in line))
     Y = lambda v: T + PH * (ymax - v) / (ymax - ymin)
     X, ticks = time_axis(grid, L, W - PAD)
-    xs = [X(t) for t in grid]
-    if len(grid) == 1:  # first day of collection: a flat band instead of an invisible sliver
-        xs, stack = [L, W - PAD], [level * 2 for level in stack]
-    path = lambda level: [f"{x:.1f},{Y(v):.1f}" for x, v in zip(xs, level)]
 
-    marks = [f'<line class="grid" x1="{L}" x2="{W - PAD}" y1="{Y(i * tick):.1f}" y2="{Y(i * tick):.1f}"/>' for i in range(1, round(ymax / tick) + 1)]
-    marks += [f'<polygon class="{cls}" points="{" ".join(path(high) + path(low)[::-1])}"/>' for (cls, _, _), low, high in zip(rows, stack, stack[1:])]
-    # a hairline in the surface color separates the layers; the axis is drawn last so nothing covers it
-    marks += [f'<polyline class="gap" points="{" ".join(path(level))}"/>' for level in stack[1:-1]]
-    marks.append(f'<line class="axis" x1="{L}" x2="{W - PAD}" y1="{Y(0):.1f}" y2="{Y(0):.1f}"/>')
+    marks = [f'<line class="{"grid" if i else "axis"}" x1="{L}" x2="{W - PAD}" y1="{Y(i * tick):.1f}" y2="{Y(i * tick):.1f}"/>' for i in range(round(ymax / tick) + 1)]
+    for n, line in lines[::-1]:  # the largest is drawn last, on top
+        d = " ".join(f"{X(t):.1f},{Y(v):.1f}" for t, v in line)
+        # the dot at the end of a line is the same dot as in its table row; the ring keeps close dots apart
+        marks.append(f'<polyline class="ln s{n}" points="{d}"/><circle class="f{n} ring" cx="{X(line[-1][0]):.1f}" cy="{Y(line[-1][1]):.1f}" r="4"/>')
 
     head = f'<tspan class="t1" font-size="30" font-weight="600">{fmt(total)}</tspan>'
+    notes = [f"across {len(series)} repositories"] if len(series) > 1 else []  # the big number is a sum no single line reaches
     if monthly_col:
-        head += f'<tspan class="t2 tk" dx="12" font-size="13">{signed(sum(c for c in changes if c is not None), fmt)} in the last 30 days</tspan>'
+        notes.append(f"{signed(sum(c for c in changes if c is not None), fmt)} in the last 30 days")
+    if notes:
+        head += f'<tspan class="t2 tk" dx="12" font-size="13">{" · ".join(notes)}</tspan>'
     text = [
         f'<text class="t2" x="{PAD}" y="30" font-size="13">{html.escape(title)}</text>',
         f'<text class="mu tk" x="{W - PAD}" y="30" text-anchor="end">Updated {now:%Y-%m-%d}</text>',
@@ -429,11 +433,12 @@ def summary(title, series, style="auto"):
     if monthly_col:
         text.append(f'<text class="mu" x="{c_change}" y="{y}" text-anchor="end">Last 30 days</text>')
     marks.append(f'<line class="grid" x1="{PAD}" x2="{W - PAD}" y1="{y + 9}" y2="{y + 9}"/>')
-    for (cls, name, _), value, change in zip(rows, totals, changes):
+    for (n, name, _), value, change in zip(rows, totals, changes):
         y += ROW
         name = name if len(name) <= room else name[: room - 1] + "…"
-        marks.append(f'<circle class="{cls}" cx="{PAD + 5}" cy="{y - 4}" r="5"/>')
-        text.append(f'<text class="t1" x="{PAD + 20}" y="{y}" font-size="13">{html.escape(name)}</text>')
+        if n is not None:
+            marks.append(f'<circle class="f{n}" cx="{PAD + 6}" cy="{y - 4}" r="6"/>')
+        text.append(f'<text class="t1" x="{PAD + 22}" y="{y}" font-size="13">{html.escape(name)}</text>')
         text.append(f'<text class="t1 tk" x="{c_total}" y="{y}" font-size="13" text-anchor="end">{exact(value)}</text>')
         if monthly_col:
             text.append(f'<text class="t2 tk" x="{c_change}" y="{y}" font-size="13" text-anchor="end">{"—" if change is None else signed(change)}</text>')
@@ -469,8 +474,8 @@ def chart():
         if form in ("bars", "summary") and metric in GAUGES:
             sys.exit(f"charts config error: {metric} is not cumulative, so it cannot be drawn as {form}. Use line or area.")
         series = []
-        # ponytail: line, area and bars draw only the first 8 targets recorded. The summary takes all of them and folds
-        # the tail into "Other"; past 8 targets its colors repeat, so two of the top five could share one.
+        # ponytail: line, area and bars draw only the first 8 targets recorded. The summary takes all of them,
+        # draws the five largest and folds the rest into "Other".
         shown = order if form == "summary" else order[: len(SERIES)]
         for n, (e, name) in enumerate(shown):  # the color slot stays with the target even when some targets lack the metric
             pts = [(datetime.fromisoformat(r["observed_at"]), float(r["value"])) for r in rows if r["entity_id"] == e and r["metric"] == metric]
@@ -548,14 +553,17 @@ def selftest():
     # summary: the header total is the sum of the latest values, with one layer per target
     two = [(0, "a", [(day(1, 1), 100.0), (day(1, 30), 400.0), (day(3, 1), 1500.0)]), (1, "b", [(day(2, 1), 40.0), (day(3, 1), 500.0)])]
     doc = summary("x", two)  # as of Mar 1; 30 days ago is Jan 30: a grew 1500-400, b (nearest Feb 1) 500-40
-    assert ">2,000<" in doc and doc.count("<polygon") == 2 and "+1,560 in the last 30 days" in doc, doc[:600]
+    assert ">2,000<" in doc and doc.count("<polyline") == 2 and "across 2 repositories · +1,560 in the last 30 days" in doc, doc[:600]
     assert value_at(two[1][2], day(1, 15)) == 0 and value_at(two[1][2], day(2, 15)) == 40.0
     assert grew([(day(1, 1), 100.0), (day(3, 1), 900.0)], day(1, 30)) is None  # a gap around 30 days ago: unknown, not 800
     assert grew([(day(2, 20), 100000.0), (day(3, 1), 100050.0)], day(1, 30)) == 50.0  # tracked late: only growth since first seen
     assert "Last 30 days" not in summary("x", [(0, "a", [(day(3, 1), 5.0), (day(3, 9), 9.0)])])  # under 30 days of history
-    assert "<polygon" in summary("x", [(0, "a", [(day(3, 1), 5.0)])])  # a single day still draws
+    assert summary("x", [(0, "a", [(day(3, 1), 5.0)])]).count("<circle") == 2  # a single day still shows its dot
+    gone = summary("x", [(0, "a", [(day(1, 1), 1.0), (day(3, 1), 9.0)]), (1, "b", [(day(1, 1), 1.0), (day(2, 1), 5.0)])])
+    assert gone.count('cx="776.0"') == 1  # b was last seen in February: its line stops there, not at today's edge
     many = [(i % 8, f"t{i}", [(day(1, 1), 0.0), (day(3, 1), 10.0 + i)]) for i in range(9)]
-    assert ">126<" in summary("x", many) and "Other (4)" in summary("x", many)  # all 9 targets count toward the total
+    doc = summary("x", many)  # all 9 targets count toward the total; t8 shares slot 0 with t0 and must not share its color
+    assert ">126<" in doc and "Other (4)" in doc and doc.count("<polyline") == 5 and doc.count('<polyline class="ln s0"') == 1
     led = [
         dict(observed_at="2026-01-02", entity_id="b", target="datasets/o/new"),
         dict(observed_at="2026-01-01", entity_id="b", target="datasets/o/old"),

@@ -13,7 +13,7 @@ models = ["downloadsAllTime", "downloads", "likes", "trendingScore"]
 spaces = ["likes", "trendingScore"]
 
 # Charts shown in the README, in this order. One summary is enough to read at a glance.
-#   form:  summary (total, stacked history, and a table) | line | area | bars (monthly increase)
+#   form:  summary (total, one line per repository, and a table) | line | area | bars (monthly increase)
 #   style: auto (follows the viewer's light/dark setting) | light | dark | sketch (hand-drawn)
 [[charts]]
 metric = "downloadsAllTime"
